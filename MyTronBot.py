@@ -48,6 +48,7 @@ class Map:
   def __str__(self):
     return "\n".join(["".join(x) for x in self.map])
 
+
 class Filler:
   def __init__(self, themap):
     self.map = copy.deepcopy(themap)
@@ -95,14 +96,40 @@ class Filler:
   def __str__(self):
     return str(self.map)
 
+class Move:
+  def __init__(self, direction):
+    self.direction = direction
+    self.distances = {}
+    self.controls  = {}
+    self.draw      = {}
+
+def which_move_new(board):
+  mymap = Map(board)
+
+  myMoves = board.moves()
+  hisPossible = dict((dir, board.rel(dir, board.them())) for dir in tron.DIRECTIONS)
+  hisMoves = [ dir for dir in hisPossible if board.passable(hisPossible[dir])]
+
+  me = board.me()
+  he = board.them()
+  myCoords = Coords(me[0], me[1])
+  hisCoords = Coords(he[0], he[1])
+
+  moveInstances = []
+
+  for myMove in myMoves:
+    startCoordsMy  = myCoords.neigh(myMove)
+
+    move = Move(myMove)
+    move.setDistance(startCoordsMy.distance(hisCoords), "start")
+
+    for hisMove in hisMoves:
+      startCoordsHis = hisCoords.neigh(hisMove)
+      move.setDistance(startCoordsHis.distance(startCoordsMy), hisMove)
+      filler.start(startCoordsMy, startCoordsHis)
+
+
 def which_move(board):
-
-    # fill in your code here. it must return one of the following directions:
-    #   tron.NORTH, tron.EAST, tron.SOUTH, tron.WEST
-
-    # For now, choose a legal move randomly.
-    # Note that board.moves will produce [NORTH] if there are no
-    # legal moves available.
     myMap = Map(board)
 
     myMoves = board.moves()
