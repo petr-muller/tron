@@ -113,15 +113,16 @@ def which_move(board):
     he = board.them()
     myCoords = Coords(me[0], me[1])
     hisCoords = Coords(he[0], he[1])
+    distances = {}
+    for move in myMoves:
+      distances[move] = hisCoords.distance(myCoords.neigh(move))
+
     distance = myCoords.distance(hisCoords)
 
     scoreBoard = {}
 
     for move in myMoves:
-      if distance < 2.0:
-        scoreBoard[move] = 9999
-      else:
-        scoreBoard[move] = -9999
+      scoreBoard[move] = 9999
 
     for myMove in myMoves:
       for hisMove in hisMoves:
@@ -142,11 +143,7 @@ def which_move(board):
           hisNew = filler.hisControl
 
         score = myNew - hisNew
-        if distance < 2.0:
-          scoreBoard[myMove] = min(scoreBoard[myMove], score)
-        else:
-          scoreBoard[myMove] = max(scoreBoard[myMove], score)
-
+        scoreBoard[myMove] = min(scoreBoard[myMove], score)
 
     maxScore = max(scoreBoard.values())
     choices = []
@@ -154,7 +151,14 @@ def which_move(board):
       if scoreBoard[choice] == maxScore:
         choices.append(choice)
 
-    return random.choice(choices)
+    minimal = 9999
+    to_return = None
+    for choice in choices:
+      if distances[choice] < minimal:
+        minimal = distances[choice]
+        to_return = choice
+
+    return to_return
 
 # you do not need to modify this part
 for board in tron.Board.generate():
