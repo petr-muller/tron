@@ -344,34 +344,6 @@ def which_move_new(board):
 
   return decision(moveInstances)
 
-
-#def which_move(board):
-
-#        while (myOld != myNew) or (hisOld != hisNew):
-#          myOld = myNew
-#          hisOld = hisNew
-#          filler.iterate()
-#          myNew = filler.myControl
-#          hisNew = filler.hisControl
-
-#        score = myNew - hisNew
-#        scoreBoard[myMove] = min(scoreBoard[myMove], score)
-
-#    maxScore = max(scoreBoard.values())
-#    choices = []
-#    for choice in scoreBoard:
-#      if scoreBoard[choice] == maxScore:
-#        choices.append(choice)
-#
-#    minimal = 9999
-#    to_return = None
-#    for choice in choices:
-#      if distances[choice] < minimal:
-#        minimal = distances[choice]
-#        to_return = choice
-#
-#    return to_return
-
 # you do not need to modify this part
 for board in tron.Board.generate():
   tron.move(which_move_new(board))
