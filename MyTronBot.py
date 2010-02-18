@@ -59,6 +59,7 @@ class Filler:
     self.hisMain  = []
     self.myControl = 0
     self.hisControl = 0
+    self.isolated = True
 
   def start(self, my, his):
     self.myMain.append(my)
@@ -72,12 +73,11 @@ class Filler:
     hisAux = []
 
     for my in self.myMain:
-      self.map.map[my.x][my.y] = 'X'
+      self.map.map[my.x][my.y] = '#'
       for candidate in [ my.neigh(x) for x in ('N','S','W','E') ]:
         if self.map.map[candidate.x][candidate.y] == ' ':
           self.map.map[candidate.x][candidate.y] = 'C'
           myAux.append(Coords(candidate.x, candidate.y))
-
 
     for his in self.hisMain:
       self.map.map[his.x][his.y] = 'X'
@@ -86,14 +86,17 @@ class Filler:
           self.map.map[candidate.x][candidate.y] = 'X'
           hisAux.append(Coords(candidate.x, candidate.y))
         elif self.map.map[candidate.x][candidate.y] == 'C':
-          self.map.map[candidate.x][candidate.y] = 'X'
+          self.map.map[candidate.x][candidate.y] = '#'
+
+        if self.map.map[candidate.x][candidate.y] == '#':
+          self.isolated = False
 
     self.hisMain = hisAux;
     self.myMain = []
 
     for cand in myAux:
       if self.map.map[cand.x][cand.y] == 'C':
-        self.map.map[cand.x][cand.y] = 'X'
+        self.map.map[cand.x][cand.y] = '#'
         self.myMain.append(cand)
 
   def fill(self):
@@ -119,16 +122,17 @@ class Filler:
   def getHisControl(self):
     return self.hisControl
 
-  def getIsolated(self):
-    return False
-
   def getDraw(self):
     return False
+
+  def getIsolated(self):
+    return self.isolated
 
 class Move:
   def __init__(self, direction):
     self.direction  = direction
     self.hismoves   = []
+    self.myFuture   = 0
     self.distances  = {}
     self.controlmy  = {}
     self.controlhis = {}
@@ -145,6 +149,7 @@ class Move:
     to_return += "\nDraws:          %s" % " ".join([ "%s=%s" % (key, self.draw[key]) for key in self.draw])
     to_return += "\nIsolated:       %s" % " ".join([ "%s=%s" % (key, self.isolated[key]) for key in self.isolated])
     to_return += "\nClashes:        %s" % " ".join([ "%s=%s" % (key, self.clashes[key]) for key in self.clashes])
+    to_return += "\nFuture:         %s" % self.myFuture
 
     return to_return
 
@@ -186,6 +191,15 @@ class Move:
       self.scores = [ self.controlmy[key] - self.controlhis[key] for key in self.hismoves ]
     return   float(sum(self.scores)) / len(self.scores)
 
+  def getTotallyIsolated(self):
+    return False not in [ self.isolated[key] for key in self.hismoves ]
+
+  def addFuturePossibility(self):
+    self.myFuture += 1
+
+  def getFuture(self):
+    return self.myFuture
+
 class movList:
   def __init__(self):
     self.moves = {}
@@ -221,6 +235,8 @@ class movList:
         value = self.moves[move].getAverageScore()
       elif  criteria == "min":
         value = self.moves[move].getMinimumScore()
+      elif  criteria == "fut":
+        value = self.moves[move].getFuture()
 
       if not histoGram.has_key(value):
         histoGram[value] = {}
@@ -244,6 +260,8 @@ class movList:
         value = self.moves[move].getAverageScore()
       elif  criteria == "min":
         value = self.moves[move].getMinimumScore()
+      elif  criteria == "fut":
+        value = self.moves[move].getFuture()
 
       if not histoGram.has_key(value):
         histoGram[value] = {}
@@ -252,21 +270,31 @@ class movList:
 
     self.moves = histoGram[min(histoGram)]
 
+  def getTotallyIsolated(self):
+    return False not in [ move.getTotallyIsolated() for move in self.moves.values() ]
+
 def decision(movList):
   if not movList.heLost():
     minimums = movList.getMinimums()
     maximin = max(minimums.values())
 
-    if maximin < 0: # we are losing
+    if not movList.getTotallyIsolated():
+      if maximin < 0: # we are losing
+        movList.pruneMax("max")
+        movList.pruneMin("dis")
+        movList.pruneMax("avg")
+        movList.pruneMax("max")
+      else: # we are drawing or winning
+        movList.pruneMax("min")
+        movList.pruneMin("dis")
+        movList.pruneMax("avg")
+        movList.pruneMax("max")
+    else:
       movList.pruneMax("max")
+      movList.pruneMin("fut")
       movList.pruneMin("dis")
       movList.pruneMax("avg")
-      movList.pruneMax("max")
-    else: # we are drawing or winning
       movList.pruneMax("min")
-      movList.pruneMin("dis")
-      movList.pruneMax("avg")
-      movList.pruneMax("max")
 
   return movList.randomChoice().direction
 
@@ -287,8 +315,12 @@ def which_move_new(board):
 
   for myMove in myMoves:
     startCoordsMy  = myCoords.neigh(myMove)
-
     move = Move(myMove)
+
+    for candidate in [ startCoordsMy.neigh(x) for x in ('N','S','W','E') ]:
+      if myMap.map[candidate.x][candidate.y] == ' ':
+        move.addFuturePossibility()
+
     move.setDistance(startCoordsMy.distance(hisCoords), "start")
 
     for hisMove in hisMoves:
@@ -301,8 +333,8 @@ def which_move_new(board):
       filler.fill()
       move.setMyControl(filler.getMyControl(), hisMove)
       move.setHisControl(filler.getHisControl(), hisMove)
-      move.setIsolated(filler.getIsolated(), hisMove)
       move.setDraw(startCoordsHis == startCoordsMy, hisMove)
+      move.setIsolated(filler.getIsolated(), hisMove)
 
     moveInstances.addMove(move)
 
