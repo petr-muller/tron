@@ -6,6 +6,9 @@ import tron
 import random
 import copy
 import math
+import sys
+
+isolatedNow = False
 
 class Coords:
   def __init__(self, x, y):
@@ -281,23 +284,90 @@ def decision(movList):
     if not movList.getTotallyIsolated():
       if maximin < 0: # we are losing
         movList.pruneMax("max")
+#        movList.pruneMax("avg")
+        movList.pruneMax("min")
+        movList.pruneMin("fut")
         movList.pruneMin("dis")
-        movList.pruneMax("avg")
-        movList.pruneMax("max")
       else: # we are drawing or winning
         movList.pruneMax("min")
-        movList.pruneMin("dis")
-        movList.pruneMax("avg")
         movList.pruneMax("max")
+        movList.pruneMin("fut")
+        movList.pruneMin("dis")
+#        movList.pruneMax("avg")
     else:
       movList.pruneMax("max")
       movList.pruneMin("fut")
       movList.pruneMin("dis")
       movList.pruneMax("avg")
       movList.pruneMax("min")
+      global isolatedNow
+      isolatedNow = True
 
   return movList.randomChoice().direction
 
+
+def floodFill(map, coords):
+  count = 0
+  if map.map[coords.x][coords.y] == ' ':
+    map.map[coords.x][coords.y] = 'F'
+    count += 1
+    count += floodFill(map, coords.neigh(1))
+    count += floodFill(map, coords.neigh(2))
+    count += floodFill(map, coords.neigh(3))
+    count += floodFill(map, coords.neigh(4))
+  return count
+#  print map
+#  print "Flooding from: %s" % coords
+#  return  4
+
+def findBestOne(map, coords, depth):
+  myMap = copy.deepcopy(map)
+  if depth == 0:
+    return floodFill(myMap, coords)
+
+  curBestNumber = 0
+  curBestDirection = None
+  myMap.map[coords.x][coords.y] = 'X'
+
+  for move in (1,2,3,4):
+    neighMove = coords.neigh(move)
+    if myMap.map[neighMove.x][neighMove.y] == ' ':
+      curLen = findBestOne(myMap, coords.neigh(move), depth-1)
+      if curLen > curBestNumber:
+        curBestNumber = curLen
+
+  return curBestNumber
+
+def backTrack(map, coords, moves, depth):
+  curBestNumber = -1
+  curBestDirection = None
+
+  for move in moves:
+    curLen = findBestOne(map, coords.neigh(move), depth)
+    if curLen > curBestNumber:
+      curBestNumber = curLen
+      curBestDirection = move
+    elif curLen == curBestNumber:
+      curCoords = coords.neigh(curBestDirection)
+      newCoords = coords.neigh(move)
+      countC = 0
+      countN = 0
+      for direction in (1,2,3,4):
+        tmpC = curCoords.neigh(direction)
+        tmpN = newCoords.neigh(direction)
+        if map.map[tmpC.x][tmpC.y] == ' ':
+          countC += 1
+        if map.map[tmpN.x][tmpN.y] == ' ':
+          countN += 1
+      if countN < countC:
+        curBestDirection = move
+
+  if curBestDirection is None:
+    return None
+
+  movLst = movList()
+  movLst.addMove(Move(curBestDirection))
+  return movLst
 
 def which_move_new(board):
   myMap = Map(board)
@@ -311,32 +381,38 @@ def which_move_new(board):
   myCoords = Coords(me[0], me[1])
   hisCoords = Coords(he[0], he[1])
 
-  moveInstances = movList()
+  moveInstances = None
 
-  for myMove in myMoves:
-    startCoordsMy  = myCoords.neigh(myMove)
-    move = Move(myMove)
+  global isolatedNow
+  if isolatedNow:
+    moveInstances = backTrack(myMap, myCoords, myMoves, 5)
 
-    for candidate in [ startCoordsMy.neigh(x) for x in ('N','S','W','E') ]:
-      if myMap.map[candidate.x][candidate.y] == ' ':
-        move.addFuturePossibility()
+  if moveInstances is None:
+    moveInstances = movList()
+    for myMove in myMoves:
+      startCoordsMy  = myCoords.neigh(myMove)
+      move = Move(myMove)
 
-    move.setDistance(startCoordsMy.distance(hisCoords), "start")
+      for candidate in [ startCoordsMy.neigh(x) for x in ('N','S','W','E') ]:
+        if myMap.map[candidate.x][candidate.y] == ' ':
+          move.addFuturePossibility()
 
-    for hisMove in hisMoves:
-      startCoordsHis = hisCoords.neigh(hisMove)
-      move.setDistance(startCoordsHis.distance(startCoordsMy), hisMove)
-      move.addHisMove(hisMove)
+      move.setDistance(startCoordsMy.distance(hisCoords), "start")
 
-      filler = Filler(myMap)
-      filler.start(startCoordsMy, startCoordsHis)
-      filler.fill()
-      move.setMyControl(filler.getMyControl(), hisMove)
-      move.setHisControl(filler.getHisControl(), hisMove)
-      move.setDraw(startCoordsHis == startCoordsMy, hisMove)
-      move.setIsolated(filler.getIsolated(), hisMove)
+      for hisMove in hisMoves:
+        startCoordsHis = hisCoords.neigh(hisMove)
+        move.setDistance(startCoordsHis.distance(startCoordsMy), hisMove)
+        move.addHisMove(hisMove)
 
-    moveInstances.addMove(move)
+        filler = Filler(myMap)
+        filler.start(startCoordsMy, startCoordsHis)
+        filler.fill()
+        move.setMyControl(filler.getMyControl(), hisMove)
+        move.setHisControl(filler.getHisControl(), hisMove)
+        move.setDraw(startCoordsHis == startCoordsMy, hisMove)
+        move.setIsolated(filler.getIsolated(), hisMove)
+
+      moveInstances.addMove(move)
 
 #  for move in moveInstances.moves.values():
 #    print move
